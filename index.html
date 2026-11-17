@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>遊戲代碼公開區｜阿集老師教學遊戲</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Huninn&display=swap">
+    <style>
+        :root {
+            --ui-font: "Huninn", "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", "Noto Sans CJK TC", sans-serif, "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji";
+            --ink: #1e293b; --muted: #64748b; --line: #e2e8f0; --brand: #2563eb; --brand-d: #1d4ed8; --sun: #facc15;
+        }
+        * { box-sizing: border-box; }
+        html, body { margin: 0; }
+        body {
+            font-family: var(--ui-font); color: var(--ink);
+            background: linear-gradient(160deg, #e0f2fe 0%, #fef9c3 55%, #fce7f3 100%);
+            background-attachment: fixed; min-height: 100vh;
+        }
+        .wrap { max-width: 1120px; margin: 0 auto; padding: 18px 14px 40px; }
+        header.hero {
+            background: #fff; border-radius: 22px; padding: 18px 22px 16px; border: 3px solid var(--sun);
+            box-shadow: 0 10px 28px rgba(37, 99, 235, 0.12); text-align: center;
+        }
+        .hero h1 { margin: 0; font-size: clamp(24px, 4.2vw, 36px); color: #1e3a8a; letter-spacing: 1px; }
+        .hero p { margin: 6px 0 0; font-size: clamp(14px, 2.2vw, 17px); color: #475569; }
+        .hero .how { display: inline-flex; flex-wrap: wrap; gap: 8px 14px; justify-content: center; margin-top: 10px; font-size: 14px; color: #334155; }
+        .hero .how span { background: #f1f5f9; border-radius: 99px; padding: 4px 12px; }
+
+        .toolbar {
+            position: sticky; top: 0; z-index: 20; margin: 14px 0 10px; padding: 10px 12px;
+            background: rgba(255,255,255,0.92); backdrop-filter: blur(6px); border-radius: 16px;
+            border: 2px solid var(--line); box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+            display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+        }
+        .search {
+            flex: 1 1 240px; display: flex; align-items: center; gap: 6px; background: #fff;
+            border: 2px solid #cbd5e1; border-radius: 12px; padding: 0 10px;
+        }
+        .search:focus-within { border-color: var(--brand); }
+        .search input { border: none; outline: none; font: inherit; font-size: 17px; padding: 9px 2px; width: 100%; background: transparent; }
+        .seg { display: inline-flex; background: #f1f5f9; border-radius: 12px; padding: 3px; gap: 3px; }
+        .seg button, .chip {
+            font: inherit; border: none; cursor: pointer; border-radius: 10px; padding: 7px 12px; font-size: 15px;
+            background: transparent; color: #334155; white-space: nowrap;
+        }
+        .seg button.on { background: #fff; color: var(--brand-d); box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
+        .chips { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
+        .chip { background: #fff; border: 2px solid var(--line); padding: 5px 12px; }
+        .chip.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+        .status-line { font-size: 14px; color: var(--muted); margin: 4px 4px 10px; min-height: 20px; }
+
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+        .card {
+            background: #fff; border-radius: 18px; padding: 14px 16px 14px; border: 2px solid var(--line);
+            box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06); display: flex; flex-direction: column; gap: 8px;
+        }
+        .card-top { display: flex; align-items: center; gap: 10px; }
+        .code {
+            font-size: 28px; letter-spacing: 3px; color: #b91c1c; background: #fef2f2; border: 2px dashed #fca5a5;
+            border-radius: 12px; padding: 2px 10px; cursor: pointer; font-variant-numeric: tabular-nums;
+        }
+        .code:hover { background: #fee2e2; }
+        .new-badge { background: #22c55e; color: #fff; font-size: 12px; border-radius: 99px; padding: 2px 8px; }
+        .title { font-size: 20px; line-height: 1.35; color: #0f172a; word-break: break-word; }
+        .meta { font-size: 13.5px; color: var(--muted); }
+        .samples { font-size: 14px; color: #334155; background: #f8fafc; border-radius: 10px; padding: 6px 10px; line-height: 1.5; }
+        .samples b { color: #475569; font-weight: normal; }
+        .games { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
+        .game-btn {
+            font: inherit; cursor: pointer; border: none; border-radius: 12px; padding: 9px 12px; font-size: 16px;
+            background: linear-gradient(180deg, #3b82f6, #2563eb); color: #fff; box-shadow: 0 3px 0 #1e40af;
+            display: inline-flex; align-items: center; gap: 6px; transition: transform 0.08s;
+        }
+        .game-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #1e40af; }
+        .game-btn .cnt { background: rgba(255,255,255,0.22); border-radius: 99px; padding: 1px 8px; font-size: 13.5px; }
+        .more { display: block; margin: 18px auto 0; font: inherit; font-size: 16px; border: 2px solid var(--brand); color: var(--brand-d); background: #fff; border-radius: 12px; padding: 9px 22px; cursor: pointer; }
+        .empty { text-align: center; background: #fff; border-radius: 18px; padding: 34px 16px; color: var(--muted); font-size: 16px; border: 2px dashed #cbd5e1; }
+        .empty button { margin-top: 12px; }
+        footer { text-align: center; color: var(--muted); font-size: 13px; margin-top: 26px; line-height: 1.6; }
+        #toast {
+            position: fixed; left: 50%; top: 16px; transform: translateX(-50%); z-index: 99; display: none;
+            background: rgba(15, 23, 42, 0.92); color: #fff; padding: 10px 18px; border-radius: 12px; font-size: 15px; max-width: 92%;
+        }
+        .skeleton { height: 190px; border-radius: 18px; background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 37%, #f1f5f9 63%); background-size: 400% 100%; animation: sk 1.2s ease infinite; }
+        @keyframes sk { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+        @media (max-width: 520px) { .grid { grid-template-columns: 1fr; } .code { font-size: 25px; } }
+    </style>
+</head>
+<body>
+<div id="toast"></div>
+<div class="wrap">
+    <header class="hero">
+        <h1>📚 遊戲代碼公開區</h1>
+        <p>老師們公開分享的練習題，挑一個就能開始玩！</p>
+        <div class="how"><span>① 找到想練習的單元</span><span>② 點下方遊戲按鈕</span><span>③ 代碼自動帶入，輸入名字就開始</span></div>
+    </header>
+
+    <div class="toolbar">
+        <label class="search">🔍 <input id="q" type="search" placeholder="輸入代碼或關鍵字，例如 12345、質數、動物" autocomplete="off"></label>
+        <div class="seg" role="group" aria-label="排序">
+            <button id="sort-new" class="on" onclick="setSort('new')">🆕 最新</button>
+            <button id="sort-hot" onclick="setSort('hot')">🔥 最熱門</button>
+        </div>
+        <div id="game-chips" class="chips"></div>
+    </div>
+    <div id="status" class="status-line">讀取中…</div>
+    <div id="grid" class="grid">
+        <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+    </div>
+    <button id="more" class="more" style="display:none;" onclick="showMore()">顯示更多 ⬇️</button>
+
+    <footer>
+        想把自己的題庫放上來？請在遊戲的「⚙️ 教師管理」勾選「公開到首頁」並儲存，約 10 分鐘後就會出現在這裡。<br>
+        <span id="ver">遊戲代碼公開區 v1.0</span>
+    </footer>
+</div>
+
+<script>
+    const AUTH_HUB_GAS_URL = "https://script.google.com/macros/s/AKfycby7-7iDeLAJprJ5tYkvus3POQIYRstH72t6pg_mpR9_TKY6MHoHR7gnfNG3fEOJvLEL/exec";
+    const FETCH_GET_OPTS = { method: 'GET', credentials: 'omit', redirect: 'follow' };
+    const LOCAL_CACHE_KEY = 'GCB_BOARD_CACHE_V1';
+    const CLICK_THROTTLE_MS = 30 * 60 * 1000;
+    const PAGE_SIZE = 30;
+    const NEW_DAYS = 3;
+
+    let board = { games: [], codes: [] };
+    let clicks = {};
+    let sortMode = 'new';
+    let gameFilter = '';
+    let shownCount = PAGE_SIZE;
+
+    function esc(str) {
+        return String(str == null ? '' : str).replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]));
+    }
+    // 去掉注音標註「字(ㄗˋ)」、圖片網址「https://…|名稱」
+    function plainText(str) {
+        return String(str || '')
+            .replace(/\s*[(（]\s*[ㄅ-ㄯㆠ-ㆿ˙ˊˇˋ\s]+[)）]/gu, '')
+            .replace(/https?:\/\/\S+?\|/g, '')
+            .replace(/https?:\/\/\S+/g, '🖼️')
+            .trim();
+    }
+    function showToast(msg) {
+        const t = document.getElementById('toast');
+        t.textContent = msg; t.style.display = 'block';
+        clearTimeout(t._tm); t._tm = setTimeout(() => { t.style.display = 'none'; }, 2600);
+    }
+    function fmtDate(ms) {
+        if (!ms) return '';
+        const d = new Date(ms);
+        return `${d.getMonth() + 1}/${d.getDate()}`;
+    }
+    function gameById(id) { return (board.games || []).find(g => g.id === id); }
+    function clickCount(code, gid) { return Number(clicks[code + '|' + gid] || 0); }
+    function totalClicks(c) { return (c.games || []).reduce((n, g) => n + clickCount(c.code, g.id), 0); }
+
+    function setSort(mode) {
+        sortMode = mode;
+        document.getElementById('sort-new').classList.toggle('on', mode === 'new');
+        document.getElementById('sort-hot').classList.toggle('on', mode === 'hot');
+        shownCount = PAGE_SIZE;
+        render();
+    }
+    function setGameFilter(gid) {
+        gameFilter = gid;
+        shownCount = PAGE_SIZE;
+        renderChips();
+        render();
+    }
+    function showMore() { shownCount += PAGE_SIZE; render(); }
+
+    function renderChips() {
+        const wrap = document.getElementById('game-chips');
+        const counts = {};
+        (board.codes || []).forEach(c => (c.games || []).forEach(g => { counts[g.id] = (counts[g.id] || 0) + 1; }));
+        const games = (board.games || []).filter(g => counts[g.id]);
+        if (games.length < 2) { wrap.innerHTML = ''; return; }
+        wrap.innerHTML = `<button class="chip ${gameFilter ? '' : 'on'}" onclick="setGameFilter('')">全部遊戲</button>` +
+            games.map(g => `<button class="chip ${gameFilter === g.id ? 'on' : ''}" onclick="setGameFilter('${esc(g.id)}')">${esc(g.icon)} ${esc(g.name)} <span style="opacity:.7">${counts[g.id]}</span></button>`).join('');
+    }
+
+    function filteredCodes() {
+        const q = document.getElementById('q').value.trim().toLowerCase();
+        let list = (board.codes || []).slice();
+        if (gameFilter) list = list.filter(c => (c.games || []).some(g => g.id === gameFilter));
+        if (q) {
+            list = list.filter(c => {
+                const hay = [c.code, plainText(c.title), ...(c.samples || []).map(plainText), ...(c.games || []).map(g => (gameById(g.id) || {}).name || '')].join(' ').toLowerCase();
+                return q.split(/\s+/).every(w => hay.includes(w));
+            });
+        }
+        if (sortMode === 'hot') list.sort((a, b) => totalClicks(b) - totalClicks(a) || b.updatedAt - a.updatedAt);
+        else list.sort((a, b) => b.updatedAt - a.updatedAt);
+        return list;
+    }
+
+    function cardHtml(c) {
+        const isNew = c.updatedAt && (Date.now() - c.updatedAt) < NEW_DAYS * 86400000;
+        const title = plainText(c.title) || plainText((c.samples || [])[0]) || '老師的練習題';
+        const samples = (c.samples || []).map(plainText).filter(Boolean);
+        const gameBtns = (c.games || []).map(g => {
+            const gm = gameById(g.id);
+            if (!gm || !gm.playUrl) return '';
+            return `<button class="game-btn" onclick="openGame('${esc(c.code)}','${esc(g.id)}', this)" title="開啟${esc(gm.name)}，自動帶入代碼 ${esc(c.code)}">
+                ${esc(gm.icon || '🎮')} ${esc(gm.name)} <span class="cnt" data-k="${esc(c.code + '|' + g.id)}">👆 ${clickCount(c.code, g.id)}</span></button>`;
+        }).join('');
+        return `<article class="card">
+            <div class="card-top">
+                <span class="code" onclick="copyCode('${esc(c.code)}')" title="點一下複製代碼">${esc(c.code)}</span>
+                ${isNew ? '<span class="new-badge">NEW</span>' : ''}
+            </div>
+            <div class="title">${esc(title)}</div>
+            <div class="meta">共 ${Number(c.taskCount) || 0} 題 · 更新 ${fmtDate(c.updatedAt)}</div>
+            ${samples.length ? `<div class="samples"><b>題目：</b>${samples.map(esc).join('、')}${(c.taskCount || 0) > samples.length ? '…' : ''}</div>` : ''}
+            <div class="games">${gameBtns}</div>
+        </article>`;
+    }
+
+    function render() {
+        const list = filteredCodes();
+        const grid = document.getElementById('grid');
+        const st = document.getElementById('status');
+        const q = document.getElementById('q').value.trim();
+        if (!board.codes || board.codes.length === 0) {
+            grid.innerHTML = `<div class="empty" style="grid-column:1/-1;">目前還沒有老師公開的練習題，晚點再來看看喔！</div>`;
+            st.textContent = '';
+            document.getElementById('more').style.display = 'none';
+            return;
+        }
+        if (list.length === 0) {
+            grid.innerHTML = `<div class="empty" style="grid-column:1/-1;">找不到「${esc(q)}」相關的練習題<br><button class="more" onclick="clearSearch()">看全部練習題</button></div>`;
+        } else {
+            grid.innerHTML = list.slice(0, shownCount).map(cardHtml).join('');
+        }
+        st.textContent = `共 ${list.length} 組練習題${sortMode === 'hot' ? '（依點擊次數排序）' : '（最新的在最上面）'}`;
+        document.getElementById('more').style.display = list.length > shownCount ? 'block' : 'none';
+    }
+    function clearSearch() { document.getElementById('q').value = ''; gameFilter = ''; renderChips(); render(); }
+
+    function copyCode(code) {
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).catch(() => {});
+            else {
+                const ta = document.createElement('textarea'); ta.value = code; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+            }
+        } catch (e) {}
+        showToast(`📋 已複製代碼 ${code}`);
+    }
+
+    function openGame(code, gid, btn) {
+        const gm = gameById(gid);
+        if (!gm || !gm.playUrl) return;
+        const url = gm.playUrl + (gm.playUrl.includes('?') ? '&' : '?') + 'code=' + encodeURIComponent(code);
+        const w = window.open(url, '_blank');
+        if (w) { try { w.opener = null; } catch (e) {} }
+        else location.href = url;   // 被擋視窗時直接在本頁開啟
+        recordClick(code, gid, btn);
+    }
+
+    function recordClick(code, gid, btn) {
+        const key = 'GCB_CLICK_' + code + '|' + gid;
+        try {
+            const last = Number(localStorage.getItem(key) || 0);
+            if (Date.now() - last < CLICK_THROTTLE_MS) return;   // 同一台裝置 30 分鐘內只算 1 次
+            localStorage.setItem(key, String(Date.now()));
+        } catch (e) {}
+        clicks[code + '|' + gid] = clickCount(code, gid) + 1;
+        const cnt = btn && btn.querySelector('.cnt');
+        if (cnt) cnt.textContent = '👆 ' + clicks[code + '|' + gid];
+        try {
+            fetch(`${AUTH_HUB_GAS_URL}?action=publicClick&code=${encodeURIComponent(code)}&game=${encodeURIComponent(gid)}&t=${Date.now()}`, Object.assign({ keepalive: true }, FETCH_GET_OPTS)).catch(() => {});
+        } catch (e) {}
+    }
+
+    function applyData(data) {
+        board = (data && data.board) || { games: [], codes: [] };
+        clicks = (data && data.clicks) || {};
+        renderChips();
+        render();
+    }
+
+    async function loadBoard() {
+        let hadCache = false;
+        try {
+            const cached = JSON.parse(localStorage.getItem(LOCAL_CACHE_KEY) || 'null');
+            if (cached && cached.board) { applyData(cached); hadCache = true; document.getElementById('status').textContent += '　🔄 更新中…'; }
+        } catch (e) {}
+        try {
+            const res = await fetch(`${AUTH_HUB_GAS_URL}?action=getPublicCodeBoard&t=${Date.now()}`, FETCH_GET_OPTS);
+            const data = await res.json();
+            if (!data || data.status !== 'success') throw new Error('bad');
+            applyData(data);
+            try { localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify({ board: data.board, clicks: data.clicks })); } catch (e) {}
+        } catch (e) {
+            if (hadCache) {
+                document.getElementById('status').textContent = '⚠️ 網路不穩，先顯示上次的清單';
+            } else {
+                document.getElementById('grid').innerHTML = `<div class="empty" style="grid-column:1/-1;">⚠️ 讀取失敗，請檢查網路後再試一次<br><button class="more" onclick="loadBoard()">🔄 重新讀取</button></div>`;
+                document.getElementById('status').textContent = '';
+            }
+        }
+    }
+
+    let searchTimer = null;
+    document.getElementById('q').addEventListener('input', () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => { shownCount = PAGE_SIZE; render(); }, 150);
+    });
+    // 網址帶 ?q=質數 或 ?game=bumper 時，自動套用搜尋／篩選（方便老師分享）
+    (function () {
+        const sp = new URLSearchParams(location.search);
+        if (sp.get('q')) document.getElementById('q').value = sp.get('q');
+        if (sp.get('game')) gameFilter = sp.get('game');
+    })();
+    loadBoard();
+</script>
+</body>
+</html>
