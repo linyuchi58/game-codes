@@ -127,7 +127,7 @@
 
     <footer>
         想把自己的題庫放上來？請在遊戲的「⚙️ 教師管理」勾選「公開到首頁」並儲存，約 10 分鐘後就會出現在這裡；急著要的話按上方「🔄 重整公開區」。<br>
-        <span id="ver">遊戲代碼公開區 v1.1</span>
+        <span id="ver">遊戲代碼公開區 v1.2</span>
     </footer>
 </div>
 
@@ -230,8 +230,8 @@
                 ${isNew ? '<span class="new-badge">NEW</span>' : ''}
             </div>
             <div class="title">${esc(title)}</div>
-            <div class="meta">共 ${Number(c.taskCount) || 0} 題 · 更新 ${fmtDate(c.updatedAt)}</div>
-            ${samples.length ? `<div class="samples"><b>題目：</b>${samples.map(esc).join('、')}${(c.taskCount || 0) > samples.length ? '…' : ''}</div>` : ''}
+            <div class="meta">${c.kind === 'math' ? '🧮 心算隨機出題' : `共 ${Number(c.taskCount) || 0} 題`} · 更新 ${fmtDate(c.updatedAt)}</div>
+            ${samples.length ? `<div class="samples"><b>${c.kind === 'math' ? '題型' : '題目'}：</b>${samples.map(esc).join('、')}${(c.taskCount || 0) > samples.length ? '…' : ''}</div>` : ''}
             <div class="games">${gameBtns}</div>
         </article>`;
     }
