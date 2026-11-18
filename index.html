@@ -51,6 +51,13 @@
         .chip { background: #fff; border: 2px solid var(--line); padding: 5px 12px; }
         .chip.on { background: var(--brand); border-color: var(--brand); color: #fff; }
         .status-line { font-size: 14px; color: var(--muted); margin: 4px 4px 10px; min-height: 20px; }
+        .status-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .status-row .status-line { flex: 1 1 auto; }
+        .refresh-box { display: flex; align-items: center; gap: 8px; margin: 0 4px 10px; }
+        .updated-at { font-size: 12.5px; color: var(--muted); }
+        .refresh-btn { font: inherit; font-size: 13.5px; border: 2px solid #cbd5e1; color: #475569; background: #fff; border-radius: 999px; padding: 4px 12px; cursor: pointer; }
+        .refresh-btn:hover:not(:disabled) { border-color: var(--brand); color: var(--brand-d); }
+        .refresh-btn:disabled { opacity: .6; cursor: default; }
 
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
         .card {
@@ -106,15 +113,21 @@
         </div>
         <div id="game-chips" class="chips"></div>
     </div>
-    <div id="status" class="status-line">讀取中…</div>
+    <div class="status-row">
+        <div id="status" class="status-line">讀取中…</div>
+        <div class="refresh-box">
+            <span id="updated-at" class="updated-at"></span>
+            <button id="refresh-btn" class="refresh-btn" onclick="refreshBoard()" title="剛勾選「公開到首頁」想馬上看到時再按；平常會自動更新">🔄 重整公開區</button>
+        </div>
+    </div>
     <div id="grid" class="grid">
         <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
     </div>
     <button id="more" class="more" style="display:none;" onclick="showMore()">顯示更多 ⬇️</button>
 
     <footer>
-        想把自己的題庫放上來？請在遊戲的「⚙️ 教師管理」勾選「公開到首頁」並儲存，約 10 分鐘後就會出現在這裡。<br>
-        <span id="ver">遊戲代碼公開區 v1.0</span>
+        想把自己的題庫放上來？請在遊戲的「⚙️ 教師管理」勾選「公開到首頁」並儲存，約 10 分鐘後就會出現在這裡；急著要的話按上方「🔄 重整公開區」。<br>
+        <span id="ver">遊戲代碼公開區 v1.1</span>
     </footer>
 </div>
 
@@ -122,6 +135,10 @@
     const AUTH_HUB_GAS_URL = "https://script.google.com/macros/s/AKfycby7-7iDeLAJprJ5tYkvus3POQIYRstH72t6pg_mpR9_TKY6MHoHR7gnfNG3fEOJvLEL/exec";
     const FETCH_GET_OPTS = { method: 'GET', credentials: 'omit', redirect: 'follow' };
     const LOCAL_CACHE_KEY = 'GCB_BOARD_CACHE_V1';
+    const STATIC_BOARD_URL = 'board.json';          // ⚡ GAS 每 10 分鐘發布到 GitHub 的清單（全班同時開也不卡）
+    const STATIC_STALE_MS = 25 * 60 * 1000;          // 超過 25 分鐘沒更新 → 改問 GAS
+    const REFRESH_COOLDOWN_MS = 60 * 1000;
+    let currentBuiltAt = 0;
     const CLICK_THROTTLE_MS = 30 * 60 * 1000;
     const PAGE_SIZE = 30;
     const NEW_DAYS = 3;
@@ -278,9 +295,84 @@
     function applyData(data) {
         board = (data && data.board) || { games: [], codes: [] };
         clicks = (data && data.clicks) || {};
+        currentBuiltAt = Number((data && data.builtAt) || (board && board.builtAt) || 0);
         renderChips();
         render();
+        showUpdatedAt();
     }
+    function showUpdatedAt() {
+        const el = document.getElementById('updated-at');
+        if (!el) return;
+        if (!currentBuiltAt) { el.textContent = ''; return; }
+        const d = new Date(currentBuiltAt), p = n => String(n).padStart(2, '0');
+        const mins = Math.floor((Date.now() - currentBuiltAt) / 60000);
+        el.textContent = `更新於 ${p(d.getHours())}:${p(d.getMinutes())}` + (mins >= 1 && mins < 60 ? `（${mins} 分鐘前）` : '');
+    }
+    function saveLocal(data) {
+        try { localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify({ board: data.board, clicks: data.clicks, builtAt: Number(data.builtAt || (data.board && data.board.builtAt) || 0) })); } catch (e) {}
+    }
+    // 只採用比畫面上更新的資料（避免舊的覆蓋新的）
+    function applyIfNewer(data) {
+        const b = Number((data && data.builtAt) || (data && data.board && data.board.builtAt) || 0);
+        if (b && b < currentBuiltAt) return false;
+        applyData(data); saveLocal(data); return true;
+    }
+    async function fetchJsonWithTimeout(url, ms, opts) {
+        const ctl = ('AbortController' in window) ? new AbortController() : null;
+        const timer = setTimeout(() => { try { ctl && ctl.abort(); } catch (e) {} }, ms);
+        try {
+            const res = await fetch(url, Object.assign({}, opts || {}, ctl ? { signal: ctl.signal } : {}));
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            return await res.json();
+        } finally { clearTimeout(timer); }
+    }
+    // ⚡ 先讀 GitHub 上的 board.json（同一分鐘內全班共用 CDN 快取）
+    async function loadStaticBoard() {
+        const bucket = Math.floor(Date.now() / 60000);
+        const data = await fetchJsonWithTimeout(`${STATIC_BOARD_URL}?m=${bucket}`, 6000, { cache: 'no-cache', credentials: 'omit' });
+        if (!data || !data.board) throw new Error('bad static');
+        return data;
+    }
+    // 備援：直接問 GAS（逾時自動重試一次，錯開時間避免全班同一秒擠進去）
+    async function loadGasBoard() {
+        for (let attempt = 0; attempt < 2; attempt++) {
+            try {
+                const data = await fetchJsonWithTimeout(`${AUTH_HUB_GAS_URL}?action=getPublicCodeBoard&t=${Date.now()}`, 15000, FETCH_GET_OPTS);
+                if (data && data.status === 'success') return data;
+            } catch (e) {}
+            await new Promise(r => setTimeout(r, 800 + Math.random() * 1500));
+        }
+        throw new Error('gas failed');
+    }
+    let refreshCooldownTimer = null;
+    function setRefreshCooldown(ms) {
+        const btn = document.getElementById('refresh-btn');
+        const until = Date.now() + ms;
+        try { localStorage.setItem('GCB_REFRESH_UNTIL', String(until)); } catch (e) {}
+        clearInterval(refreshCooldownTimer);
+        const tick = () => {
+            const left = Math.ceil((until - Date.now()) / 1000);
+            if (left <= 0) { clearInterval(refreshCooldownTimer); btn.disabled = false; btn.textContent = '🔄 重整公開區'; return; }
+            btn.disabled = true; btn.textContent = `🔄 ${left} 秒後可再重整`;
+        };
+        tick(); refreshCooldownTimer = setInterval(tick, 1000);
+    }
+    async function refreshBoard() {
+        const btn = document.getElementById('refresh-btn');
+        if (btn.disabled) return;
+        btn.disabled = true; btn.textContent = '⏳ 重整中…（約 10–20 秒）';
+        const st = document.getElementById('status');
+        try {
+            const data = await fetchJsonWithTimeout(`${AUTH_HUB_GAS_URL}?action=publicRefreshBoard&t=${Date.now()}`, 45000, FETCH_GET_OPTS);
+            if (!data || data.status !== 'success') throw new Error('bad');
+            applyData(data); saveLocal(data);
+            st.textContent = (data.message || '✅ 已重整') + '　' + st.textContent;
+        } catch (e) {
+            st.textContent = '⚠️ 重整失敗，請稍後再試　' + st.textContent;
+        }
+        setRefreshCooldown(REFRESH_COOLDOWN_MS);
+    }
+    setInterval(showUpdatedAt, 60000);
 
     async function loadBoard() {
         let hadCache = false;
@@ -288,21 +380,31 @@
             const cached = JSON.parse(localStorage.getItem(LOCAL_CACHE_KEY) || 'null');
             if (cached && cached.board) { applyData(cached); hadCache = true; document.getElementById('status').textContent += '　🔄 更新中…'; }
         } catch (e) {}
+        let gotFresh = false;
         try {
-            const res = await fetch(`${AUTH_HUB_GAS_URL}?action=getPublicCodeBoard&t=${Date.now()}`, FETCH_GET_OPTS);
-            const data = await res.json();
-            if (!data || data.status !== 'success') throw new Error('bad');
-            applyData(data);
-            try { localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify({ board: data.board, clicks: data.clicks })); } catch (e) {}
-        } catch (e) {
-            if (hadCache) {
-                document.getElementById('status').textContent = '⚠️ 網路不穩，先顯示上次的清單';
-            } else {
-                document.getElementById('grid').innerHTML = `<div class="empty" style="grid-column:1/-1;">⚠️ 讀取失敗，請檢查網路後再試一次<br><button class="more" onclick="loadBoard()">🔄 重新讀取</button></div>`;
-                document.getElementById('status').textContent = '';
-            }
+            const data = await loadStaticBoard();
+            applyIfNewer(data);
+            gotFresh = (Date.now() - Number(data.builtAt || 0)) < STATIC_STALE_MS;
+        } catch (e) {}
+        if (!gotFresh) {
+            try {
+                applyIfNewer(await loadGasBoard());
+                gotFresh = true;
+            } catch (e) {}
+        }
+        if (!gotFresh && !currentBuiltAt) {
+            document.getElementById('grid').innerHTML = `<div class="empty" style="grid-column:1/-1;">⚠️ 讀取失敗，請檢查網路後再試一次<br><button class="more" onclick="loadBoard()">🔄 重新讀取</button></div>`;
+            document.getElementById('status').textContent = '';
+        } else if (!gotFresh) {
+            document.getElementById('status').textContent = '⚠️ 網路不穩，先顯示上次的清單';
+        } else {
+            render();
         }
     }
+    (function () {
+        const until = Number(localStorage.getItem('GCB_REFRESH_UNTIL') || 0);
+        if (until > Date.now()) setRefreshCooldown(until - Date.now());
+    })();
 
     let searchTimer = null;
     document.getElementById('q').addEventListener('input', () => {
